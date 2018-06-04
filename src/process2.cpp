@@ -1,44 +1,73 @@
 #include "ros/ros.h"
-#include "std_msgs/String.h"
+#include "std_msgs/Int64.h"
 #include <iostream>
+#include <limits>
 
+int globalInput = -1;
 
-void chatterCallback(const std_msgs::String::ConstPtr& msg)
+int getInput()
 {
-  std::string input2;
-  std_msgs::String msg_out;
+  int input;
 
-  ROS_INFO("I heard: [%s]", msg->data.c_str());
+  bool valid = false;
 
-  ros::NodeHandle n;
-  ros::Publisher pub = n.advertise<std_msgs::String>("process2", 1000);
-
-  std::cout << "Enter Second Integer between 0 and 1000:" << '\n';
-  std::cin >> input2;
-  std::cout << "Inputted value:" << input2;
-
-  int input_val = std::stoi(input2);
-
-  if((input_val < 1000) && (input_val >0))
+  do
   {
-    msg_out.data = input2;
-    ROS_INFO("send Out: [%s]", msg_out.data.c_str());
-    pub.publish(msg_out);
-    ros::spinOnce();
+    std::cout << "Enter Second Integer between 0 and 1000:" << '\n';
+    std::cin >> input;
+    std::cout << "Inputted value:" << input;
+
+    if(std::cin.good() && (input < 1000) && (input > 0)){
+      valid = true;
+      return input;
+    }
+    else{
+      std::cin.clear();
+      std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+      std::cout << "Invalid Input. Please Enter Again." << '\n';
+    }
+  } while(!valid);
+}
+
+class Pub_Sub
+{
+public:
+  Pub_Sub()
+  {
+    pub = n.advertise<std_msgs::Int64>("process2", 1000);
+    sub = n.subscribe("process1", 1000, &Pub_Sub::callBack, this);
   }
 
-}
+  void callBack(const std_msgs::Int64::ConstPtr&msg)
+  {
+    ROS_INFO("I heard: [%d]", msg->data);
+    if((msg->data) != NULL){
+      globalInput = getInput();
+    }
+
+    ros::Rate loop_rate(1000);
+    if(ros::ok() && globalInput != -1)
+    {
+      std_msgs::Int64 msg;
+      msg.data = globalInput;
+      ROS_INFO("send Out: [%d]", msg.data);
+      pub.publish(msg);
+      loop_rate.sleep();
+    }
+  }
+
+private:
+  ros::NodeHandle n;
+  ros::Publisher pub;
+  ros::Subscriber sub;
+
+};
 
 int main(int argc, char **argv)
 {
-
   ros::init(argc, argv, "process2");
 
-  ros::NodeHandle n;
-
-  ros::Subscriber sub = n.subscribe("process1", 1000, chatterCallback);
-
+  Pub_Sub publish;
   ros::spin();
-
   return 0;
 }
